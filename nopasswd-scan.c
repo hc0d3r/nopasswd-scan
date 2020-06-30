@@ -5,11 +5,105 @@
 #include <pty.h>
 #include <string.h>
 #include <signal.h>
-#include <sys/wait.h>
+#include <ctype.h>
 
 #define sudo_pw_prompt "[sudo] password for "
 
-int nopasswd(const char *file)
+int hexnormalize(int ch)
+{
+	if (ch >= '0' && ch <= '9')
+		ch = ch - '0';
+	else if (ch >= 'a' && ch <= 'f')
+		ch = ch - 'a' + 10;
+	else
+		ch = ch - 'A' + 10;
+
+	return ch;
+}
+
+char **build_argv(const char *cmd)
+{
+	char **argv, *buf, c, aux;
+	unsigned char hex;
+	int len, argc, i, start, j;
+
+	argc = 1;
+
+	argv = malloc(3 * sizeof(char *));
+	if (argv == NULL)
+		goto end;
+
+	argv[0] = "sudo";
+
+	len = strlen(cmd);
+	buf = malloc(len + 1);
+	if (buf == NULL)
+		goto set_argv_null;
+
+	start = 0;
+
+	for (i = 0, j = 0; i < len; i++, j++) {
+		c = cmd[i];
+
+		if (c == '\\') {
+			if ((i + 1) < len) {
+				aux = cmd[i + 1];
+
+				if (aux == ' ') {
+					buf[j] = ' ';
+					i++;
+				}
+
+				else if (aux == '\\') {
+					buf[j] = '\\';
+					i++;
+				}
+
+				else if ((aux == 'x' || aux == 'X') && (i + 3) < len) {
+					if (isxdigit(cmd[i + 2]) && isxdigit(cmd[i + 3])) {
+						hex = hexnormalize(cmd[i + 2]) * 16;
+						hex += hexnormalize(cmd[i + 3]);
+						buf[j] = (char) hex;
+						i += 3;
+					}
+				}
+
+				else {
+					buf[j] = '\\';
+				}
+			}
+
+			else {
+				buf[j] = '\\';
+			}
+		}
+
+		else if (c == ' ') {
+			argv = realloc(argv, (argc + 3) * sizeof(char *));
+			if (argv == NULL)
+				goto end;
+
+			argv[argc++] = buf + start;
+			start = j + 1;
+			buf[j] = 0x0;
+		}
+
+		else {
+			buf[j] = c;
+		}
+	}
+
+	buf[j] = 0x0;
+	argv[argc++] = buf + start;
+
+set_argv_null:
+	argv[argc] = NULL;
+
+end:
+	return argv;
+}
+
+int nopasswd(const char *cmd)
 {
 	struct pollfd pfd;
 	char buf[1024];
@@ -25,7 +119,7 @@ int nopasswd(const char *file)
 	}
 
 	else if (pid == 0) {
-		execlp("sudo", "sudo", file, NULL);
+		execvp("sudo", build_argv(cmd));
 		perror("execlp() failed");
 		_exit(0);
 	}
@@ -68,7 +162,7 @@ int main(int argc, char **argv)
 
 	if (argc != 2) {
 		printf("--sudo nopasswd-scan--\n");
-		printf("usage: nopasswd-scan [FILE]\n");
+		printf("usage: nopasswd-scan [CMDLIST]\n");
 		return 1;
 	}
 
@@ -97,12 +191,12 @@ int main(int argc, char **argv)
 			printf("\n--> %s\n", line);
 			success++;
 		} else {
-			printf("\r%zd files checked", total);
+			printf("\r%zd commands checked", total);
 		}
 	}
 
-	printf("\nfinished... %zd files checked, ", total);
-	printf("%zd possibly does not require password\n", success);
+	printf("\nfinished... %zd commands checked, ", total);
+	printf("%zd possibly don't require a password\n", success);
 
 	return 0;
 }

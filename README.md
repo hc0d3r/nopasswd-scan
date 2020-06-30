@@ -10,10 +10,29 @@ Usage
 -----
 
 ```
-$ ./nopasswd-scan [FILE]
+$ ./nopasswd-scan [CMDLIST]
 ```
 
-**[FILE]** is a file that contains the file list to be checked.
+**[CMDLIST]** is the file that contains the command list that will be checked.
+
+The list format is simple, any escape character will be treated as a new parameter, if you want a space character instead of a new parameter, you must use backslash as an escape character. You should use a double backslash if you want a backslash, and if you need binary characters, you can use hex escape (e.g. ```\xff```). If an invalid escape sequence is given, such as a hex escape with invalid hex chars, then this will be ignored and the characters won't be replaced.
+
+**Examples:**
+
+Suppose that the cmd list has the following line:  
+```/my/prog I\ want\ this\ as\ a\ single parameter```
+
+The program will execute:  
+```sudo /my/prog/ "I want this as a single parameter"```
+
+> The same result can be achieved using hex escape:  
+> ```/my/prog I\x20want\x20this\x20as\x20a\x20single\x20parameter```
+
+Now suppose that the cmd list has this line:  
+```/my/prog "I want this as a single parameter"```
+
+The program will execute:  
+```sudo /my/prog "\"I" "want" "this" "as" "a" "single" "parameter\""```
 
 Demo
 ----
