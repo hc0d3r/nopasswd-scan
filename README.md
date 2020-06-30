@@ -3,6 +3,9 @@ nopasswd-scan
 
 Find files that don't need a password to be executed by sudo.
 
+Usually, this can be done by using ```sudo -l```, if the security policy (```listpw```) isn't set to ask a password, if this is your case, this tool will help you.
+
+
 Usage
 -----
 
